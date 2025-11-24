@@ -1,11 +1,4 @@
 # Project Title
 
-Short project description.
-
-
-## Usage
-```bash
-# example commands
-yarn start
-```
-
+ME44206 – Quantitative Methods for Logistics
+GROUP ASSIGNMENT Q2

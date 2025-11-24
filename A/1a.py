@@ -1,6 +1,12 @@
 from gurobipy import *
+from data import data_small as data
+
+VEHICLES = 4 
+
 model = Model ('Vehicle Routing Problem')
 
 # ---- Parameters ----
-n = 5  # Number of locations including depot
-askdjfllask
+N = range(len(data))
+V = range(len(VEHICLES))
+
+
