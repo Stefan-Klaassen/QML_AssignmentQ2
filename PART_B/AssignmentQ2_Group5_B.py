@@ -57,7 +57,7 @@ class Node:
     CHARGING: int
 
 def get_node_data() -> list[Node]:
-    file = Path(__file__) / 'data_small.txt'
+    file = Path(__file__).parent / 'data_small.txt'
     data = []
     with file.open('r') as f:
         for line in f:
@@ -69,16 +69,16 @@ def get_node_data() -> list[Node]:
 def build_distance_mat(data: list[Node]) -> list[list[float]]:
 
     def _euclidean_distance(node1: Node, node2: Node) -> float:
-        return math.sqrt( (node2.XCOORD - node2.XCOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
+        return math.sqrt( (node2.XCOORD - node1.XCOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
 
     mat = []
     for i, start in enumerate(data):
         row = []
-        for j, dist in enumerate(data):
+        for j, dest in enumerate(data):
             if i == j:
                 row.append(MAX_FLOAT)
                 continue
-            row.append(_euclidean_distance(start, dist))
+            row.append(_euclidean_distance(start, dest))
         mat.append(row)
     return mat
 
@@ -113,13 +113,14 @@ x = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')
 z = model.addVars(N, V, vtype=GRB.BINARY, name='z')
 
 # OBJECTIVE
-obj = (... for i in N for j in N for v in V)
+obj = quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V)
 model.setObjective(obj, GRB.MINIMIZE)
 
 # CONSTRAINTS
-con = (... for i in N for j in N for v in V)
-model.addConstrs(con, "name")
+con_visit = (quicksum(z[i, v] for v in V) == 1 for i in N)
+model.addConstrs(con_visit, name="visit constraint")
 
+#TODO: Constraints
 
 # SOLVE
 #==================================================================================================
