@@ -50,7 +50,7 @@ from gurobipy import Model, GRB, quicksum
 @dataclass
 class Node:
     LOC_ID: int
-    XCOORD: int
+    tau_c_iOORD: int
     YCOORD: int
     DEMAND: int
     READYTIME: int
@@ -71,7 +71,7 @@ def get_node_data() -> list[Node]:
 def build_distance_mat(data: list[Node]) -> list[list[float]]:
 
     def _euclidean_distance(node1: Node, node2: Node) -> float:
-        return math.sqrt( (node2.XCOORD - node1.XCOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
+        return math.sqrt( (node2.tau_c_iOORD - node1.tau_c_iOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
 
     mat = []
     for i, start in enumerate(data):
@@ -111,54 +111,68 @@ td = [n.DUETIME for n in node_data]         # Due time at node i
 model = Model('Vehicle Routing Problem')
 
 # DESISION VARIABLES
-xt = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')     # If 1, indicates if vehicle v travels from node i to j
-xv = model.addVars(N, V, vtype=GRB.BINARY, name='z')        # If 1, node is visited by vehicle v 
-xa = model.addVars(N, lb=0, name='τ^a')                     # Time of arrival at node i
-xc = model.addVars(N, lb=0, name='τ^c')                     # Time at node i with charging
-xw = model.addVars(N, lb=0, name='τ^w')                     # Time at node i without charging
-xb = model.addVars(N, V, lb=0, name='β')                    # Battery level of vehicle v at node i
+x_ijv = {}
+z_iv  = {}
+beta_iv = {}
+tau_a_i = {}
+tau_c_i = {}
+tau_w_i = {}
+
+for i in N:
+    tau_a_i[i] = model.addVars(N, lb=0, name='τ^a')                     # Time of arrival at node i
+    tau_c_i[i] = model.addVars(N, lb=0, name='τ^c')                     # Time at node i with charging
+    tau_w_i[i] = model.addVars(N, lb=0, name='τ^w')                     # Time at node i without charging
+    for v in V:
+        z_iv[i, v] = model.addVars(N, V, vtype=GRB.BINARY, name='z')        # If 1, node is visited by vehicle v 
+        beta_iv[i, v] = model.addVars(N, V, lb=0, name='β')                    # Battery level of vehicle v at node i
+        for j in N:
+            x_ijv[i, j, v] = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')     # If 1, indicates if vehicle v travels from node i to j
+
+
+
+
 
 # OBJECTIVE
-obj = quicksum(d[i][j] * xt[i, j, v] for i in N for j in N for v in V)
+obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
 model.setObjective(obj, GRB.MINIMIZE)
 
 # CONSTRAINTS
 constraints = {
     'visit_constraint':
-    (quicksum(xv[i, v] for v in V) == 1 for i in N[1:]),
+    (quicksum(z_iv[i, v] for v in V) == 1 for i in N[1:]),
 
     'depot_constraint':
-    quicksum(xv[0, v] for v in V) == VEHICLES,
+    quicksum(z_iv[0, v] for v in V) == VEHICLES,
 
-    'vehicle_capacity_constraint': #TODO
-    (quicksum(c[i] * xv[i, v] for i in N) for v in V),
+    'vehicle_capacity_constraint': 
+    (quicksum(q[i] * z_iv[i, v] for i in N) <= c[v] for v in V),
 
     'departure_constraint':  
-    (quicksum(xt[i, j, v] for j in N) == quicksum(xt[j, i, v] for j in N) == xv[i, v] for i in N for v in V),
+    (quicksum(x_ijv[i, j, v] for j in N) == quicksum(x_ijv[j, i, v] for j in N) == z_iv[i, v] for i in N for v in V),
 
     'time_constraint':
-    ...,
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s[v]) - MAX_FLOAT * (1 - x_ijv[i, j, v]) <= tau_a_i[j] for i in N for j in N[1:] for v in V),
 
     'time_window_constraint':
-    (tr[i] <= xa[i] <= td[i] for i in N),
+    (tr[i] <= tau_a_i[i] <= td[i] for i in N),
 
     'service_time_constraint':
-    (xc[i] + xw[i] >= ts[i] for i in N),
+    (tau_c_i[i] + tau_w_i[i] >= ts[i] for i in N),
 
     'battery_capacity_constraint':
-    (xb[i, v] - xt[i, j, v] * (d[i][j] * s[v] * bd) >= 0 
+    (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd) >= 0 
         for i in N for j in N for v in V),
 
     'battery_capacity_constraint(2)':
-    (xb[i, v] - xt[i, j, v] * (d[i][j] * s[v] * bd) + xc[j] * bc >= bm[v]
+    (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd) + tau_c_i[j] * bc >= bm[v]
         for i in N for j in N[1:] for v in V),
 
     'battery_update_constraint':
-    (xb[i, v] - xt[i, j, v] * (d[i][j] * s[v] * bd) + xc[j] * bc == xb[j, v]
+    (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd) + tau_c_i[j] * bc == beta_iv[j, v]
         for i in N for j in N[1:] for v in V),
 
     'initial_battery_constraint':
-    (xb[0, v] == bm[v] for v in V)
+    (beta_iv[0, v] == bm[v] for v in V)
 }
 
 for name, con in constraints.items():
