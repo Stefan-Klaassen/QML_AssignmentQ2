@@ -119,14 +119,14 @@ tau_c_i = {}
 tau_w_i = {}
 
 for i in N:
-    tau_a_i[i] = model.addVars(N, lb=0, name='τ^a')                     # Time of arrival at node i
-    tau_c_i[i] = model.addVars(N, lb=0, name='τ^c')                     # Time at node i with charging
-    tau_w_i[i] = model.addVars(N, lb=0, name='τ^w')                     # Time at node i without charging
+    tau_a_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^a['+str(i)+']')                     # Time of arrival at node i
+    tau_c_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^c['+str(i)+']')                     # Time at node i with charging
+    tau_w_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^w['+str(i)+']')                     # Time at node i without charging
     for v in V:
-        z_iv[i, v] = model.addVars(N, V, vtype=GRB.BINARY, name='z')        # If 1, node is visited by vehicle v 
-        beta_iv[i, v] = model.addVars(N, V, lb=0, name='β')                    # Battery level of vehicle v at node i
+        z_iv[i, v] = model.addVar(vtype=GRB.BINARY, name='z['+str(i)+','+str(v)+']')        # If 1, node is visited by vehicle v 
+        beta_iv[i, v] = model.addVar(lb=0, name='β['+str(i)+','+str(v)+']')                    # Battery level of vehicle v at node i
         for j in N:
-            x_ijv[i, j, v] = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')     # If 1, indicates if vehicle v travels from node i to j
+            x_ijv[i, j, v] = model.addVar(vtype=GRB.BINARY, name='x['+str(i)+','+str(j)+','+str(v)+']')     # If 1, indicates if vehicle v travels from node i to j
 
 
 
@@ -148,13 +148,19 @@ constraints = {
     (quicksum(q[i] * z_iv[i, v] for i in N) <= c[v] for v in V),
 
     'departure_constraint':  
-    (quicksum(x_ijv[i, j, v] for j in N) == quicksum(x_ijv[j, i, v] for j in N) == z_iv[i, v] for i in N for v in V),
+    (quicksum(x_ijv[i, j, v] for j in N) == quicksum(x_ijv[j, i, v] for j in N) for i in N for v in V),
+
+    'departure_constraint':  
+    (quicksum(x_ijv[j, i, v] for j in N) == z_iv[i, v] for i in N for v in V),
 
     'time_constraint':
     (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s[v]) - MAX_FLOAT * (1 - x_ijv[i, j, v]) <= tau_a_i[j] for i in N for j in N[1:] for v in V),
 
     'time_window_constraint':
-    (tr[i] <= tau_a_i[i] <= td[i] for i in N),
+    (tr[i] <= tau_a_i[i] for i in N),
+
+    'time_window_constraint':
+    (tau_a_i[i] <= td[i] for i in N),
 
     'service_time_constraint':
     (tau_c_i[i] + tau_w_i[i] >= ts[i] for i in N),
