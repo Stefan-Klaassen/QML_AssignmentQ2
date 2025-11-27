@@ -17,6 +17,7 @@ Usage:
      └── data_small.txt
 
 Dependencies:
+    Python 3.13.7+
     gurobipy
 
 """
@@ -38,8 +39,9 @@ VEHICLE_DISCHARGE_RATE = 1.0
 
 from pathlib import Path
 from dataclasses import dataclass
+from collections.abc import Generator
 import math
-from gurobipy import *
+from gurobipy import Model, GRB, quicksum
 
 
 # MODEL DATA
@@ -117,10 +119,23 @@ obj = quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V)
 model.setObjective(obj, GRB.MINIMIZE)
 
 # CONSTRAINTS
-con_visit = (quicksum(z[i, v] for v in V) == 1 for i in N)
-model.addConstrs(con_visit, name="visit constraint")
+constraints = {
+    'visit_constraint':
+    (quicksum(z[i, v] for v in V) == 1 for i in N),
 
-#TODO: Constraints
+    'depot_constraint':
+    quicksum(z[0, v] for v in V) == VEHICLES,
+
+    'vehicle_capacity_constraint':
+    (quicksum(bm * z[i, v] for i in N) for v in V),
+
+    'departure_constraint':  
+    (quicksum(x[i, j, v] for j in N) == quicksum(x[j, i, v] for j in N) == z[i, v] for i in N for v in V)
+}
+
+for name, con in constraints.items():
+    model.addConstrs(con, name=name) if isinstance(con, Generator) else model.addConstr(con, name=name)
+
 
 # SOLVE
 #==================================================================================================
