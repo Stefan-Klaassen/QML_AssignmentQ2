@@ -50,7 +50,7 @@ from gurobipy import Model, GRB, quicksum
 @dataclass
 class Node:
     LOC_ID: int
-    tau_c_iOORD: int
+    XCOORD: int
     YCOORD: int
     DEMAND: int
     READYTIME: int
@@ -71,7 +71,7 @@ def get_node_data() -> list[Node]:
 def build_distance_mat(data: list[Node]) -> list[list[float]]:
 
     def _euclidean_distance(node1: Node, node2: Node) -> float:
-        return math.sqrt( (node2.tau_c_iOORD - node1.tau_c_iOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
+        return math.sqrt( (node2.XCOORD - node1.XCOORD)**2 + (node2.YCOORD - node1.YCOORD)**2 )
 
     mat = []
     for i, start in enumerate(data):
@@ -111,26 +111,12 @@ td = [n.DUETIME for n in node_data]         # Due time at node i
 model = Model('Vehicle Routing Problem')
 
 # DESISION VARIABLES
-x_ijv = {}
-z_iv  = {}
-beta_iv = {}
-tau_a_i = {}
-tau_c_i = {}
-tau_w_i = {}
-
-for i in N:
-    tau_a_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^a['+str(i)+']')                     # Time of arrival at node i
-    tau_c_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^c['+str(i)+']')                     # Time at node i with charging
-    tau_w_i[i] = model.addVar(lb=0, vtype = GRB.CONTINUOUS, name='τ^w['+str(i)+']')                     # Time at node i without charging
-    for v in V:
-        z_iv[i, v] = model.addVar(vtype=GRB.BINARY, name='z['+str(i)+','+str(v)+']')        # If 1, node is visited by vehicle v 
-        beta_iv[i, v] = model.addVar(lb=0, name='β['+str(i)+','+str(v)+']')                    # Battery level of vehicle v at node i
-        for j in N:
-            x_ijv[i, j, v] = model.addVar(vtype=GRB.BINARY, name='x['+str(i)+','+str(j)+','+str(v)+']')     # If 1, indicates if vehicle v travels from node i to j
-
-
-
-
+tau_a_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^a')        # Time of arrival at node i
+tau_c_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^c')        # Time at node i with charging
+tau_w_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^w')        # Time at node i without charging
+z_iv    = model.addVars(N, V, vtype=GRB.BINARY, name='z')                   # If 1, node is visited by vehicle v 
+beta_iv = model.addVars(N, V, lb=0, name='β')                               # Battery level of vehicle v at node i
+x_ijv   = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If 1, indicates if vehicle v travels from node i to j
 
 # OBJECTIVE
 obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
@@ -148,18 +134,20 @@ constraints = {
     (quicksum(q[i] * z_iv[i, v] for i in N) <= c[v] for v in V),
 
     'departure_constraint':  
-    (quicksum(x_ijv[i, j, v] for j in N) == quicksum(x_ijv[j, i, v] for j in N) for i in N for v in V),
+    (quicksum(x_ijv[i, j, v] for j in N) == quicksum(x_ijv[j, i, v]
+        for j in N) for i in N for v in V),
 
-    'departure_constraint':  
+    'departure_constraint(2)':  
     (quicksum(x_ijv[j, i, v] for j in N) == z_iv[i, v] for i in N for v in V),
 
     'time_constraint':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s[v]) - MAX_FLOAT * (1 - x_ijv[i, j, v]) <= tau_a_i[j] for i in N for j in N[1:] for v in V),
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s[v]) - MAX_FLOAT * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
+        for i in N for j in N[1:] for v in V),
 
     'time_window_constraint':
     (tr[i] <= tau_a_i[i] for i in N),
 
-    'time_window_constraint':
+    'time_window_constraint(2)':
     (tau_a_i[i] <= td[i] for i in N),
 
     'service_time_constraint':
@@ -192,7 +180,7 @@ model.update()
 model.write('TSPmodel.lp')
 setattr(model.Params, 'timeLimit', 3600)
 model.optimize()
-model.write('TSPmodel.sol')
+# model.write('TSPmodel.sol')
 
-z = model.ObjVal if model.Status == GRB.OPTIMAL else "😢"
-print('\n'*2, 'Result: ', z)
+res = model.ObjVal if model.Status == GRB.OPTIMAL else "😢"
+print('\n'*2, 'Result: ', res, sep='')
