@@ -111,19 +111,22 @@ td = [n.DUETIME for n in node_data]         # Due time at node i
 model = Model('Vehicle Routing Problem')
 
 # DESISION VARIABLES
-tau_a_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^a')        # Time of arrival at node i
-tau_c_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^c')        # Time at node i with charging
-tau_w_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^w')        # Time at node i without charging
-z_iv    = model.addVars(N, V, vtype=GRB.BINARY, name='z')                   # If 1, node is visited by vehicle v 
-beta_iv = model.addVars(N, V, lb=0, name='β')                               # Battery level of vehicle v at node i
-x_ijv   = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If 1, indicates if vehicle v travels from node i to j
+x     = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If 1, indicates if vehicle v travels from node i to j
+z     = model.addVars(N, V, vtype=GRB.BINARY, name='z')                   # If 1, node is visited by vehicle v 
+tau_a = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^a')        # Time of arrival at node i
+tau_c = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^c')        # Time at node i with charging
+tau_l = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^l')        # Time at node i without charging
+beta  = model.addVars(N, V, lb=0, name='β')                               # Battery level of vehicle v at node i
+l     = model.addVars(N, V, lb=0, name='l')     
+u     = model.addVars(N, V, lb=0, name='u')  
+
 
 # OBJECTIVE
-obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
+obj = quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V)
 model.setObjective(obj, GRB.MINIMIZE)
 
 # CONSTRAINTS
-constraints = {
+constraints = { #TODO: allemaal
     'visit_constraint':
     (quicksum(z_iv[i, v] for v in V) == 1 for i in N[1:]),
 
