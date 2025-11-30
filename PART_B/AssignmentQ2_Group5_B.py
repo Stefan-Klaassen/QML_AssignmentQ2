@@ -22,18 +22,6 @@ Dependencies:
 
 """
 
-# CONSTANTS
-#==================================================================================================
-
-MAX_FLOAT = 1e6
-VEHICLES = 4
-VEHICLE_PACE = 2
-VEHICLE_CAPACITY = 120
-VEHICLE_RANGE = 110
-VEHICLE_CHARGE_RATE = 1.0
-VEHICLE_DISCHARGE_RATE = 1.0
-
-
 # IMPORTS
 #==================================================================================================
 
@@ -45,8 +33,21 @@ from gurobipy import Model, GRB, quicksum
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 
+
+
+
 # MODEL DATA
 #==================================================================================================
+
+# CONSTANTS
+MAX_TIME = 10000
+MAX_BATTERY = 2000
+VEHICLES = 4
+VEHICLE_PACE = 2
+VEHICLE_CAPACITY = 120
+VEHICLE_RANGE = 110
+VEHICLE_CHARGE_RATE = 1.0
+VEHICLE_DISCHARGE_RATE = 1.0
 
 @dataclass
 class Node:
@@ -60,8 +61,15 @@ class Node:
     CHARGING: int
 
 def get_node_data() -> list[Node]:
-    file = Path(__file__).parent / 'data_small.txt'
+    # In a Jupyter notebook __file__ is not defined, so fall back to the current working directory
+    try:
+        base_path = Path(__file__).parent
+    except NameError:
+        base_path = Path.cwd()
+    file = base_path / 'data_small.txt'
     data = []
+    if not file.exists():
+        raise FileNotFoundError(f"Data file not found: {file}")
     with file.open('r') as f:
         for line in f:
             row = [int(v) for v in line.strip().split()]
@@ -88,15 +96,19 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
 node_data = get_node_data()
 
 # SETS
+#==================================================================================================
+
 N = range(len(node_data))
 V = range(VEHICLES)
 
 # PARAMETERS
+#==================================================================================================
+
 c  = VEHICLE_CAPACITY      # Vehicle capacity per vehicle v
 d  = build_distance_mat(node_data)          # Distance between node i and j
 s  = [VEHICLE_PACE for _ in V]              # Velocity of vehicle v
 q  = [n.DEMAND for n in node_data]          # Demand at node i
-bm = [VEHICLE_RANGE for _ in V]             # Maximum battery capacity of vehicle v
+bm = VEHICLE_RANGE         # Maximum battery capacity of vehicle v
 bc = VEHICLE_CHARGE_RATE                    # Energy charging rate
 bd = VEHICLE_DISCHARGE_RATE                 # Energy discharging rate
 bs = [n.CHARGING for n in node_data]        # Charger station at node i
@@ -118,6 +130,7 @@ tau_w_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^w')        # T
 z_iv    = model.addVars(N, V, vtype=GRB.BINARY, name='z')                   # If 1, node is visited by vehicle v 
 beta_iv = model.addVars(N, V, lb=0, name='β')                               # Battery level of vehicle v at node i
 x_ijv   = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If 1, indicates if vehicle v travels from node i to j
+beta_free = model.addVars(N, V, name='β_free')                           # Free battery level of vehicle v at node i
 
 # OBJECTIVE
 obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
@@ -146,60 +159,49 @@ constraints = {
     (x_ijv[i, i, v] == 0 for i in N for v in V),
 
     'time_constraint':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s[v]) -  MAX_FLOAT * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s[v]) -  MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
         for i in N for j in N[1:] for v in V),
 
-    'time_window_constraint':
+    'time_window_constraint_start':
     (tr[i] <= tau_a_i[i] for i in N),
 
-    'time_window_constraint(2)':
+    'time_window_constraint_end':
     (tau_a_i[i] <= td[i] for i in N),
 
     'service_time_constraint':
     (tau_c_i[i] + tau_w_i[i] >= ts[i] for i in N),
 
-    'battery_capacity_constraint':
-    (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd) >= 0 
+    'battery_capacity_constraint_bottom':
+    ((beta_iv[i, v]      -       (d[i][j] * s[v] * bd)   +    tau_c_i[i] * bc * bs[i])   + (1 - x_ijv[i, j, v]) * MAX_BATTERY      >= 0 
         for i in N for j in N for v in V),
 
-    'battery_capacity_constraint':
-    (beta_iv[i, v] +       z_iv[i, v] * tau_c_i[i] * bc * bs[i] <= bm[v] 
-        for i in N[1:] for v in V),
-
-    # 'battery_capacity_constraint(2)':
-    # (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd) + tau_c_i[j] * bc -  MAX_FLOAT * (1 - x_ijv[i, j, v])  >= bm[v]
-    #     for i in N for j in N[1:] for v in V), 
-
+    'battery_capacity_constraint_top':
+    ((beta_iv[i, v]      +       tau_c_i[i] * bc * bs[i])   - (1 - x_ijv[i, j, v]) * MAX_BATTERY          <= bm 
+        for i in N for j in N for v in V),
+    
     'battery_update_constraint':
-    (beta_iv[i, v] - x_ijv[i, j, v] * (d[i][j] * s[v] * bd)     +     tau_c_i[j] * bc * bs[j]        -     MAX_FLOAT * (1 - x_ijv[i, j, v]) <= beta_iv[j, v]
+    (beta_iv[i, v]      -       (d[i][j] * s[v] * bd)   +    tau_c_i[i] * bc * bs[i]   + (1 - x_ijv[i, j, v]) * MAX_BATTERY     >=    beta_iv[j, v]
         for i in N for j in N[1:] for v in V),
 
-    # 'initial_battery_constraint':
-    # (beta_iv[0, v] == bm[v] for v in V)
+    'initial_battery_constraint':
+    (beta_iv[0, v] == bm for v in V),
+
+    'charging_time_constraint':
+    (tau_c_i[i] == tau_c_i[i] * bs[i] for i in N),
+
 }
 
 for name, con in constraints.items():
     model.addConstrs(con, name=name) if isinstance(con, Generator) else model.addConstr(con, name=name)
 
-# # Forbid self-loops (i -> i) which can create spurious depot visits
-# model.addConstrs((x_ijv[i, i, v] == 0 for i in N for v in V), name='no_self_loops')
-
-# # Force each vehicle to depart from the depot exactly once and return exactly once
-# model.addConstrs((quicksum(x_ijv[0, j, v] for j in N if j != 0) == 1 for v in V), name='depart_depot_once')
-# model.addConstrs((quicksum(x_ijv[i, 0, v] for i in N if i != 0) == 1 for v in V), name='return_depot_once')
-
-# # Add MTZ subtour-elimination variables and constraints (per vehicle)
-# num_nodes = len(node_data)
-# u_iv = model.addVars(N, V, lb=0, ub=num_nodes-1, vtype=GRB.CONTINUOUS, name='u')
-# # Fix depot ordering
-# model.addConstrs((u_iv[0, v] == 0 for v in V), name='u_depot_zero')
-# # MTZ inequalities: prevent cycles not connected to depot
-# model.addConstrs((u_iv[i, v] - u_iv[j, v] + num_nodes * x_ijv[i, j, v] <= num_nodes - 1
-#                   for i in N for j in N for v in V if i != j), name='mtz')
-
-
 # SOLVE
 #==================================================================================================
+# model.computeIIS()
+
+# print('IIS written to model.iis')
+# # optional: list IIS constraints
+# print([c.ConstrName for c in model.getConstrs() if c.IISConstr == 1])
+
 
 model.update()
 model.write('TSPmodel.lp')
@@ -210,69 +212,5 @@ model.optimize()
 res = model.ObjVal if model.Status == GRB.OPTIMAL else "😢"
 print('\n'*2, 'Result: ', res, sep='')
 
-i = 7
-j = 4
-v = 0
-print(f'{tau_a_i[i].X} + {tau_c_i[i].X} + {tau_w_i[i].X} + ({d[i][j]} * {s[1]}) - {MAX_FLOAT} * (1 - {x_ijv[i, j, v].X}))<= {tau_a_i[j].X}')
-print(tau_a_i[i].X + tau_c_i[i].X + tau_w_i[i].X  +  (d[i][j] * s[v]) -  MAX_FLOAT * (1 - x_ijv[i, j, v].X))
 
 
-i = 4
-j = 7
-v = 0
-
-print(f'{tau_a_i[i].X} + {tau_c_i[i].X} + {tau_w_i[i].X} + ({d[i][j]} * {s[1]}) - {MAX_FLOAT} * (1 - {x_ijv[i, j, v].X}))<= {tau_a_i[j].X}')
-print(tau_a_i[i].X + tau_c_i[i].X + tau_w_i[i].X  +  (d[i][j] * s[v]) -  MAX_FLOAT * (1 - x_ijv[i, j, v].X))
-
-
-if res != "😢":
-    # Extract solution
-    solution = []
-    for v in V:
-        route = []
-        for i in N:
-            for j in N:
-                if x_ijv[i, j, v].X > 0.5:
-                    route.append((i, j))
-        solution.append(route)
-    
-    print('\n'*2, 'Solution: ', solution, sep='')
-if res != "😢":
-    # Plotting points
-    x_coords = [node_data[0].XCOORD]
-    y_coords = [node_data[0].YCOORD]
-    for n in node_data[1:]:
-        x_coords.append(n.XCOORD)
-        y_coords.append(n.YCOORD)
-    plt.scatter(x_coords, y_coords, color='red')
-    plt.text(node_data[0].XCOORD, node_data[0].YCOORD, 'Depot', fontsize=9, ha='right')
-    for i, n in enumerate(node_data[1:], start=1):
-        plt.text(n.XCOORD, n.YCOORD, f'{i}', fontsize=9, ha='right')
-
-
-    # Plotting the routes put arrows between the nodes
-    cmap = plt.get_cmap('tab10')
-
-    for v, route in enumerate(solution):
-        if not route:
-            continue
-        color = cmap(v % 10)
-        plt.plot([], [], color=color, label=f'Vehicle {v+1}')
-        ax = plt.gca()
-        for i_idx, j_idx in route:
-            x1, y1 = node_data[i_idx].XCOORD, node_data[i_idx].YCOORD
-            x2, y2 = node_data[j_idx].XCOORD, node_data[j_idx].YCOORD
-            if x1 == x2 and y1 == y2:
-                continue
-            arr = FancyArrowPatch((x1, y1), (x2, y2),
-                                 arrowstyle='-|>', mutation_scale=12,
-                                 color=color, linewidth=1.5,
-                                 shrinkA=3, shrinkB=3)
-            ax.add_patch(arr)
-
-    plt.title('Vehicle Routes')
-    plt.xlabel('X Coordinate')
-    plt.ylabel('Y Coordinate')
-    plt.legend()
-    plt.grid()
-    plt.show()
