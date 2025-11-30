@@ -106,7 +106,7 @@ V = range(VEHICLES)
 
 c  = VEHICLE_CAPACITY      # Vehicle capacity per vehicle v
 d  = build_distance_mat(node_data)          # Distance between node i and j
-s  = [VEHICLE_PACE for _ in V]              # Velocity of vehicle v
+s  = VEHICLE_PACE           # Velocity of vehicle v
 q  = [n.DEMAND for n in node_data]          # Demand at node i
 bm = VEHICLE_RANGE         # Maximum battery capacity of vehicle v
 bc = VEHICLE_CHARGE_RATE                    # Energy charging rate
@@ -130,7 +130,7 @@ tau_w_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^w')        # T
 z_iv    = model.addVars(N, V, vtype=GRB.BINARY, name='z')                   # If 1, node is visited by vehicle v 
 beta_iv = model.addVars(N, V, lb=0, name='β')                               # Battery level of vehicle v at node i
 x_ijv   = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If 1, indicates if vehicle v travels from node i to j
-beta_free = model.addVars(N, V, name='β_free')                           # Free battery level of vehicle v at node i
+
 
 # OBJECTIVE
 obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
@@ -158,9 +158,21 @@ constraints = {
     'no self loops':
     (x_ijv[i, i, v] == 0 for i in N for v in V),
 
-    'time_constraint':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s[v]) -  MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
+    'time_constraint(1)':
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s) -  MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
         for i in N for j in N[1:] for v in V),
+    
+    'time_constraint(2)':
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s) +  MAX_TIME * (1 - x_ijv[i, j, v]) >= tau_a_i[j]
+        for i in N for j in N[1:] for v in V),
+
+    'end_time_constraint(1)':
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] +  (d[i][0] * s) -  MAX_TIME * (1 - x_ijv[i, 0, v]) <= td[0]
+        for i in N[1:] for v in V),
+    
+    'end_time_constraint(2)':
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] +  (d[i][0] * s) +  MAX_TIME * (1 - x_ijv[i, 0, v]) >= td[0]
+        for i in N[1:] for v in V),
 
     'time_window_constraint_start':
     (tr[i] <= tau_a_i[i] for i in N),
@@ -172,7 +184,7 @@ constraints = {
     (tau_c_i[i] + tau_w_i[i] >= ts[i] for i in N),
 
     'battery_capacity_constraint_bottom':
-    ((beta_iv[i, v]      -       (d[i][j] * s[v] * bd)   +    tau_c_i[i] * bc * bs[i])   + (1 - x_ijv[i, j, v]) * MAX_BATTERY      >= 0 
+    ((beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i])   + (1 - x_ijv[i, j, v]) * MAX_BATTERY      >= 0 
         for i in N for j in N for v in V),
 
     'battery_capacity_constraint_top':
@@ -180,7 +192,11 @@ constraints = {
         for i in N for j in N for v in V),
     
     'battery_update_constraint':
-    (beta_iv[i, v]      -       (d[i][j] * s[v] * bd)   +    tau_c_i[i] * bc * bs[i]   + (1 - x_ijv[i, j, v]) * MAX_BATTERY     >=    beta_iv[j, v]
+    (beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i]   + (1 - x_ijv[i, j, v]) * MAX_BATTERY     >=    beta_iv[j, v]
+        for i in N for j in N[1:] for v in V),
+
+    'battery_update_constraint(2)':
+    (beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i]   - (1 - x_ijv[i, j, v]) * MAX_BATTERY     <=    beta_iv[j, v]
         for i in N for j in N[1:] for v in V),
 
     'initial_battery_constraint':
@@ -188,6 +204,7 @@ constraints = {
 
     'charging_time_constraint':
     (tau_c_i[i] == tau_c_i[i] * bs[i] for i in N),
+
 
 }
 
