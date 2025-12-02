@@ -159,9 +159,9 @@ constraints = {
     (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s) - MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
         for i in N for j in N[1:] if i != j for v in V),
     
-    'time_constraint(2)':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s) + MAX_TIME * (1 - x_ijv[i, j, v]) >= tau_a_i[j]
-        for i in N for j in N[1:] if i != j for v in V),
+    # 'time_constraint(2)': # Only used for plotting
+    # (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s) + MAX_TIME * (1 - x_ijv[i, j, v]) >= tau_a_i[j]
+    #     for i in N for j in N[1:] if i != j for v in V),
 
     'end_time_constraint(1)':
     (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][0] * s) - MAX_TIME * (1 - x_ijv[i, 0, v]) <= td[0]
