@@ -8,7 +8,7 @@ Authors:
     Peter Nederveen - 
     Britt van de Geer - 
     Bart Verzijl - 
-Last updated: 2025-11-27
+Last updated: 2025-12-02
 Version: 1.0
 
 Usage:
@@ -25,15 +25,11 @@ Dependencies:
 # IMPORTS
 #==================================================================================================
 
+import math, sys
 from pathlib import Path
 from dataclasses import dataclass
 from collections.abc import Generator
-import math
 from gurobipy import Model, GRB, quicksum
-import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
-
-
 
 
 # MODEL DATA
@@ -60,13 +56,13 @@ class Node:
     SERVICETIME: int
     CHARGING: int
 
-def get_node_data() -> list[Node]:
-    # In a Jupyter notebook __file__ is not defined, so fall back to the current working directory
+def get_node_data(filename: str) -> list[Node]:
     try:
-        base_path = Path(__file__).parent
-    except NameError:
-        base_path = Path.cwd()
-    file = base_path / 'data_small.txt'
+        file = Path(__file__).parent / filename
+        assert file.is_file(), f"Kan '{filename}' niet vinden in '{file.parent}'."
+    except Exception as e: 
+        print(e)
+        sys.exit(1)
     data = []
     if not file.exists():
         raise FileNotFoundError(f"Data file not found: {file}")
@@ -87,13 +83,13 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
         row = []
         for j, dest in enumerate(data):
             if i == j:
-                row.append(0)
+                row.append(float('inf'))
                 continue
             row.append(_euclidean_distance(start, dest))
         mat.append(row)
     return mat
 
-node_data = get_node_data()
+node_data = get_node_data('data_small.txt')
 
 # SETS
 #==================================================================================================
@@ -104,11 +100,11 @@ V = range(VEHICLES)
 # PARAMETERS
 #==================================================================================================
 
-c  = VEHICLE_CAPACITY      # Vehicle capacity per vehicle v
+c  = VEHICLE_CAPACITY                       # Vehicle capacity per vehicle v
 d  = build_distance_mat(node_data)          # Distance between node i and j
-s  = VEHICLE_PACE           # Velocity of vehicle v
+s  = VEHICLE_PACE                           # Pace of vehicle v
 q  = [n.DEMAND for n in node_data]          # Demand at node i
-bm = VEHICLE_RANGE         # Maximum battery capacity of vehicle v
+bm = VEHICLE_RANGE                          # Maximum battery capacity of vehicle v
 bc = VEHICLE_CHARGE_RATE                    # Energy charging rate
 bd = VEHICLE_DISCHARGE_RATE                 # Energy discharging rate
 bs = [n.CHARGING for n in node_data]        # Charger station at node i
@@ -123,6 +119,7 @@ td = [n.DUETIME for n in node_data]         # Due time at node i
 # MODEL
 model = Model('Vehicle Routing Problem')
 
+
 # DESISION VARIABLES
 tau_a_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^a')        # Time of arrival at node i
 tau_c_i = model.addVars(N, lb=0, vtype = GRB.CONTINUOUS, name='τ^c')        # Time at node i with charging
@@ -133,7 +130,7 @@ x_ijv   = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                # If
 
 
 # OBJECTIVE
-obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V)
+obj = quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N if i != j for v in V)
 model.setObjective(obj, GRB.MINIMIZE)
 
 
@@ -159,19 +156,19 @@ constraints = {
     (x_ijv[i, i, v] == 0 for i in N for v in V),
 
     'time_constraint(1)':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s) -  MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
-        for i in N for j in N[1:] for v in V),
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s) - MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
+        for i in N for j in N[1:] if i != j for v in V),
     
     'time_constraint(2)':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i]  +  (d[i][j] * s) +  MAX_TIME * (1 - x_ijv[i, j, v]) >= tau_a_i[j]
-        for i in N for j in N[1:] for v in V),
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][j] * s) + MAX_TIME * (1 - x_ijv[i, j, v]) >= tau_a_i[j]
+        for i in N for j in N[1:] if i != j for v in V),
 
     'end_time_constraint(1)':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] +  (d[i][0] * s) -  MAX_TIME * (1 - x_ijv[i, 0, v]) <= td[0]
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][0] * s) - MAX_TIME * (1 - x_ijv[i, 0, v]) <= td[0]
         for i in N[1:] for v in V),
     
     'end_time_constraint(2)':
-    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] +  (d[i][0] * s) +  MAX_TIME * (1 - x_ijv[i, 0, v]) >= td[0]
+    (tau_a_i[i] + tau_c_i[i] + tau_w_i[i] + (d[i][0] * s) + MAX_TIME * (1 - x_ijv[i, 0, v]) >= td[0]
         for i in N[1:] for v in V),
 
     'time_window_constraint_start':
@@ -184,50 +181,52 @@ constraints = {
     (tau_c_i[i] + tau_w_i[i] >= ts[i] for i in N),
 
     'battery_capacity_constraint_bottom':
-    ((beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i])   + (1 - x_ijv[i, j, v]) * MAX_BATTERY      >= 0 
-        for i in N for j in N for v in V),
+    ((beta_iv[i, v] - (d[i][j] * s * bd) + tau_c_i[i] * bc * bs[i]) + (1 - x_ijv[i, j, v]) * MAX_BATTERY >= 0 
+        for i in N for j in N if i != j for v in V),
 
     'battery_capacity_constraint_top':
-    ((beta_iv[i, v]      +       tau_c_i[i] * bc * bs[i])   - (1 - x_ijv[i, j, v]) * MAX_BATTERY          <= bm 
+    ((beta_iv[i, v] + tau_c_i[i] * bc * bs[i]) - (1 - x_ijv[i, j, v]) * MAX_BATTERY <= bm 
         for i in N for j in N for v in V),
     
     'battery_update_constraint':
-    (beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i]   + (1 - x_ijv[i, j, v]) * MAX_BATTERY     >=    beta_iv[j, v]
-        for i in N for j in N[1:] for v in V),
+    (beta_iv[i, v] - (d[i][j] * s * bd) + tau_c_i[i] * bc * bs[i] + (1 - x_ijv[i, j, v]) * MAX_BATTERY >= beta_iv[j, v]
+        for i in N for j in N[1:] if i != j for v in V),
 
     'battery_update_constraint(2)':
-    (beta_iv[i, v]      -       (d[i][j] * s * bd)   +    tau_c_i[i] * bc * bs[i]   - (1 - x_ijv[i, j, v]) * MAX_BATTERY     <=    beta_iv[j, v]
-        for i in N for j in N[1:] for v in V),
+    (beta_iv[i, v] - (d[i][j] * s * bd) + tau_c_i[i] * bc * bs[i] - (1 - x_ijv[i, j, v]) * MAX_BATTERY <= beta_iv[j, v]
+        for i in N for j in N[1:] if i != j for v in V),
 
     'initial_battery_constraint':
     (beta_iv[0, v] == bm for v in V),
 
     'charging_time_constraint':
     (tau_c_i[i] == tau_c_i[i] * bs[i] for i in N),
-
-
 }
 
 for name, con in constraints.items():
-    model.addConstrs(con, name=name) if isinstance(con, Generator) else model.addConstr(con, name=name)
+    if isinstance(con, Generator): model.addConstrs(con, name=name) 
+    else: model.addConstr(con, name=name)
+
 
 # SOLVE
 #==================================================================================================
-# model.computeIIS()
 
+# model.computeIIS()
 # print('IIS written to model.iis')
 # # optional: list IIS constraints
 # print([c.ConstrName for c in model.getConstrs() if c.IISConstr == 1])
-
 
 model.update()
 model.write('TSPmodel.lp')
 setattr(model.Params, 'timeLimit', 3600)
 model.optimize()
-# model.write('TSPmodel.sol')
+model.write('TSPmodel.sol')
 
-res = model.ObjVal if model.Status == GRB.OPTIMAL else "😢"
-print('\n'*2, 'Result: ', res, sep='')
+solved = model.Status == GRB.OPTIMAL
+
+if __name__ == "__main__":
+    print('\n')
+    print('Success, obj:', model.ObjVal) if solved else print('Failed')
 
 
 
