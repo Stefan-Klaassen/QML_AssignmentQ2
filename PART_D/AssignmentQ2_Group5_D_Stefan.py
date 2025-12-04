@@ -42,13 +42,9 @@ from gurobipy import Model, GRB, quicksum
 INF = 1e5
 MAX_TIME = 2000
 MAX_BATTERY = 200
-FLEET_SIZE = 4
 VEHICLE_PACE = 2
-VEHICLE_CAPACITY = 120
-VEHICLE_RANGE = 110
-VEHICLE_CHARGE_RATE = 1.0
-VEHICLE_DISCHARGE_RATE = 1.0
 
+# CLASSES
 @dataclass
 class Node:
     LOC_ID: int
@@ -66,6 +62,15 @@ class ChargePeriod:
     STARTTIME: int
     ENDTIME: int
     COST: int
+
+@dataclass
+class Case:
+    fleet_size: int
+    capacity: int
+    battery_range: int
+    charge_rate: float
+    discharge_rate: float
+    charge_periods: list[ChargePeriod]
 
 def get_data(filename: str, Cls: Any) -> list[Any]:
     try:
@@ -101,32 +106,47 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
 node_data: list[Node] = get_data('data_small.txt', Node)
 charge_periods: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
+# CASES
+cases = {
+    1: Case(4, 120, 110, 1.0, 1.0, [ChargePeriod(0, 0, MAX_TIME, 2)]),
+    2: Case(4, 120, 110, 1.0, 1.0, get_data('data_periodsCharge.txt', ChargePeriod)),
+    3: Case(4, 120, 110, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
+    4: Case(4, 120,  90, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
+    5: Case(4, 200, 140, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
+}
+
+case = None
+while not case:
+    try:
+        inp = input("Enter case number: ")
+        case = cases[int(inp)]
+    except:
+        print("Enter an number from 1 - 5. (press ctrl+c to exit)")
 
 # SETS
 #==================================================================================================
 
 N = range(len(node_data))
-V = range(FLEET_SIZE)
+V = range(case.fleet_size)
 P = range(len(charge_periods))
 
 
 # PARAMETERS
 #==================================================================================================
 
-c  = VEHICLE_CAPACITY                       # Vehicle capacity per vehicle v
+c  = case.capacity                          # Vehicle capacity per vehicle v
 cd  = build_distance_mat(node_data)         # Distance between node i and j
 s  = VEHICLE_PACE                           # Pace of vehicle v
 q  = [n.DEMAND for n in node_data]          # Demand at node i
-bm = VEHICLE_RANGE                          # Maximum travel time of vehicle v
-bc = VEHICLE_CHARGE_RATE                    # travel time per charge time
-bd = VEHICLE_DISCHARGE_RATE                 # battery time per travel time
+bm = case.battery_range                     # Maximum travel time of vehicle v
+bc = case.charge_rate                       # travel time per charge time
+bd = case.discharge_rate                    # battery time per travel time
 bs = [n.CHARGING for n in node_data]        # Charger station at node i
 ts = [n.SERVICETIME for n in node_data]     # Minimal service time at node i
 tr = [n.READYTIME for n in node_data]       # Ready time at node i
 td = [n.DUETIME for n in node_data]         # Due time at node i
-K  = FLEET_SIZE                             # number of vehicles to be used
 wd = 1.0                                    # weight of distance in objective
-wc = 1.0                                    # weight of charging costs in objective
+wc = 0.5                                    # weight of charging costs in objective
 cc = [p.COST for p in charge_periods]       # Charging cost in period p
 to = [p.STARTTIME for p in charge_periods]  # Open time for charge period p
 tc = [p.ENDTIME for p in charge_periods]    # Close time for charge period p
