@@ -14,7 +14,7 @@ Version: 1.0
 
 Usage:
     ../
-     ├── AssignmentQ2_Group5_B.py
+     ├── AssignmentQ2_Group5_D.py
      ├── data_periodsCharge.txt
      └── data_small.txt
 
@@ -41,7 +41,7 @@ from gurobipy import Model, GRB, quicksum
 # CONSTANTS
 INF = 1e5
 MAX_TIME = 2000
-MAX_BATTERY = 200
+MAX_BATTERY = 500
 VEHICLE_PACE = 2
 
 # CLASSES
@@ -104,15 +104,17 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
         mat.append(row)
     return mat
 
+# GET EXTERNAL DATA
 node_data: list[Node] = get_data('data_small.txt', Node)
+charge_periods_from_file: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # CASES
 cases = {
     1: Case(4, 120, 110, 1.0, 1.0, [ChargePeriod(0, 0, MAX_TIME, 2)]),
-    2: Case(4, 120, 110, 1.0, 1.0, get_data('data_periodsCharge.txt', ChargePeriod)),
-    3: Case(4, 120, 110, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
-    4: Case(4, 120,  90, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
-    5: Case(4, 200, 140, 1.1, 0.7, get_data('data_periodsCharge.txt', ChargePeriod)),
+    2: Case(4, 120, 110, 1.0, 1.0, charge_periods_from_file),
+    3: Case(4, 120, 110, 1.1, 0.7, charge_periods_from_file),
+    4: Case(4, 120,  90, 1.1, 0.7, charge_periods_from_file),
+    5: Case(4, 200, 140, 1.1, 0.7, charge_periods_from_file),
 }
 
 case = None
@@ -151,6 +153,7 @@ wc = 0.5                                        # weight of charging costs in ob
 cc = [p.COST for p in case.charge_periods]      # Charging cost in period p
 to = [p.STARTTIME for p in case.charge_periods] # Open time for charge period p
 tc = [p.ENDTIME for p in case.charge_periods]   # Close time for charge period p
+
 
 # MODEL DEFINITION
 #==================================================================================================
@@ -304,7 +307,3 @@ if __name__ == "__main__":
         print('Failed')
         sys.exit(1)
     print('Success, obj:', sol)
-
-
-
-
