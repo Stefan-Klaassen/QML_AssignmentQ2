@@ -72,6 +72,7 @@ class Case:
     discharge_rate: float
     charge_periods: list[ChargePeriod]
 
+# FUNCTIONS
 def get_data(filename: str, Cls: Any) -> list[Any]:
     try:
         file = Path(__file__).parent / filename
@@ -104,7 +105,6 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
     return mat
 
 node_data: list[Node] = get_data('data_small.txt', Node)
-charge_periods: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # CASES
 cases = {
@@ -123,33 +123,34 @@ while not case:
     except:
         print("Enter an number from 1 - 5. (press ctrl+c to exit)")
 
+
 # SETS
 #==================================================================================================
 
 N = range(len(node_data))
 V = range(case.fleet_size)
-P = range(len(charge_periods))
+P = range(len(case.charge_periods))
 
 
 # PARAMETERS
 #==================================================================================================
 
-c  = case.capacity                          # Vehicle capacity per vehicle v
-cd  = build_distance_mat(node_data)         # Distance between node i and j
-s  = VEHICLE_PACE                           # Pace of vehicle v
-q  = [n.DEMAND for n in node_data]          # Demand at node i
-bm = case.battery_range                     # Maximum travel time of vehicle v
-bc = case.charge_rate                       # travel time per charge time
-bd = case.discharge_rate                    # battery time per travel time
-bs = [n.CHARGING for n in node_data]        # Charger station at node i
-ts = [n.SERVICETIME for n in node_data]     # Minimal service time at node i
-tr = [n.READYTIME for n in node_data]       # Ready time at node i
-td = [n.DUETIME for n in node_data]         # Due time at node i
-wd = 1.0                                    # weight of distance in objective
-wc = 0.5                                    # weight of charging costs in objective
-cc = [p.COST for p in charge_periods]       # Charging cost in period p
-to = [p.STARTTIME for p in charge_periods]  # Open time for charge period p
-tc = [p.ENDTIME for p in charge_periods]    # Close time for charge period p
+c  = case.capacity                              # Vehicle capacity per vehicle v
+cd  = build_distance_mat(node_data)             # Distance between node i and j
+s  = VEHICLE_PACE                               # Pace of vehicle v
+q  = [n.DEMAND for n in node_data]              # Demand at node i
+bm = case.battery_range                         # Maximum travel time of vehicle v
+bc = case.charge_rate                           # travel time per charge time
+bd = case.discharge_rate                        # battery time per travel time
+bs = [n.CHARGING for n in node_data]            # Charger station at node i
+ts = [n.SERVICETIME for n in node_data]         # Minimal service time at node i
+tr = [n.READYTIME for n in node_data]           # Ready time at node i
+td = [n.DUETIME for n in node_data]             # Due time at node i
+wd = 1.0                                        # weight of distance in objective
+wc = 0.5                                        # weight of charging costs in objective
+cc = [p.COST for p in case.charge_periods]      # Charging cost in period p
+to = [p.STARTTIME for p in case.charge_periods] # Open time for charge period p
+tc = [p.ENDTIME for p in case.charge_periods]   # Close time for charge period p
 
 # MODEL DEFINITION
 #==================================================================================================
