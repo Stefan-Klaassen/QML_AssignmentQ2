@@ -138,7 +138,7 @@ P = range(len(case.charge_periods))
 #==================================================================================================
 
 c  = case.capacity                                      # Vehicle capacity per vehicle v
-cd = build_distance_mat(node_data)                      # Distance between node i and j
+d = build_distance_mat(node_data)                       # Distance between node i and j
 s  = VEHICLE_PACE                                       # Pace of vehicle v
 q  = [n.DEMAND for n in node_data]                      # Demand at node i
 bm = case.battery_range                                 # Maximum travel time of vehicle v
@@ -166,8 +166,8 @@ x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                     
 z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                    # If 1, node is visited by vehicle v
 u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
 k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                         # outgoing vehicles
-tau_s  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging start time at node i inperiod p for vehicle v
-tau_e  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging end time at node i inperiod p for vehicle v
+tau_s  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging start time at node i in period p for vehicle v
+tau_e  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging end time at node i in period p for vehicle v
 beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^c')     # Amount charged at node i in period p
 beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^b')                               # if 1, vehicle v has charged in period p at node i
 beta_a = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^a')                 # Battery level at arrival of vehicle v at node i
@@ -177,7 +177,7 @@ tau_d  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^d
 
 # OBJECTIVE
 obj = (
-    wd * quicksum(cd[i][j] * x[i, j, v] for i in N for j in N for v in V) +       # Distance
+    wd * quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V) +       # Distance
     wc * quicksum(cc[p] * beta_q[i, p, v] for i in N[1:] for p in P for v in V)   # Charging costs
 )
 model.setObjective(obj, GRB.MINIMIZE)
@@ -222,7 +222,7 @@ constraints = {
     (beta_a[0, v] == bm for v in V),
 
     'battery_dynamics_traveling': # departure charge - discharge == arrival charge
-    (beta_d[i, v] - cd[i][j] * s * bd + MAX_BATTERY * (1 - x[i, j, v]) >= beta_a[j, v]
+    (beta_d[i, v] - d[i][j] * s *  bd + MAX_BATTERY * (1 - x[i, j, v]) >= beta_a[j, v]
      for i in N for j in N[1:] if i != j for v in V),
 
     'battery_dynamics_charging': # arrival charge + total charge == departure charge
@@ -238,12 +238,12 @@ constraints = {
      for i in N for p in P for v in V),
 
     'final_charge': # departure charge last node - discharge ( +inf if not last node) >= 0
-    (beta_d[i, v] - cd[i][0] * s * bd + MAX_BATTERY * (1 - x[i, 0, v]) >= 0
+    (beta_d[i, v] - d[i][0] * s * bd + MAX_BATTERY * (1 - x[i, 0, v]) >= 0
      for i in N[1:] for v in V),
 
     # TIME:
     'arrival_time_dynamics': # departure time outgoing node + travel time ( -inf if not prev arc) <= arrival time
-    (tau_d[i, v] + cd[i][j] * s - MAX_TIME * (1 - x[i, j, v]) <= tau_a[j, v]
+    (tau_d[i, v] + d[i][j] * s - MAX_TIME * (1 - x[i, j, v]) <= tau_a[j, v]
      for i in N for j in N[1:] if i != j for v in V),
 
     'departure_time_dynamics_service': # departure time >= arrival time + service time
@@ -277,7 +277,7 @@ constraints = {
     (td[i] >= tau_a[i, v] for i in N[1:] for v in V),
 
     'finish_time': # departure time + travel time ( -inf if not prev arc) <= due time depot
-    (tau_d[i, v] + cd[i][0] * s - MAX_TIME * (1 - x[i, 0, v]) <= td[0]
+    (tau_d[i, v] + d[i][0] * s - MAX_TIME * (1 - x[i, 0, v]) <= td[0]
      for i in N[1:] for v in V),
 }
 
