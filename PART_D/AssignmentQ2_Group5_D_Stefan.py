@@ -106,7 +106,7 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
 
 # GET EXTERNAL DATA
 node_data: list[Node] = get_data('data_small.txt', Node)
-charge_periods_from_file: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
+charge_periods_from_file = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # CASES
 cases = {
@@ -123,7 +123,7 @@ while not case:
         inp = input("Enter case number: ")
         case = cases[int(inp)]
     except:
-        print("Enter an number from 1 - 5. (press ctrl+c to exit)")
+        print("Enter a number from 1 - 5. (press ctrl+c to exit)")
 
 
 # SETS
@@ -137,22 +137,22 @@ P = range(len(case.charge_periods))
 # PARAMETERS
 #==================================================================================================
 
-c  = case.capacity                              # Vehicle capacity per vehicle v
-cd  = build_distance_mat(node_data)             # Distance between node i and j
-s  = VEHICLE_PACE                               # Pace of vehicle v
-q  = [n.DEMAND for n in node_data]              # Demand at node i
-bm = case.battery_range                         # Maximum travel time of vehicle v
-bc = case.charge_rate                           # travel time per charge time
-bd = case.discharge_rate                        # battery time per travel time
-bs = [n.CHARGING for n in node_data]            # Charger station at node i
-ts = [n.SERVICETIME for n in node_data]         # Minimal service time at node i
-tr = [n.READYTIME for n in node_data]           # Ready time at node i
-td = [n.DUETIME for n in node_data]             # Due time at node i
-wd = 1.0                                        # weight of distance in objective
-wc = 0.5                                        # weight of charging costs in objective
-cc = [p.COST for p in case.charge_periods]      # Charging cost in period p
-to = [p.STARTTIME for p in case.charge_periods] # Open time for charge period p
-tc = [p.ENDTIME for p in case.charge_periods]   # Close time for charge period p
+c  = case.capacity                                      # Vehicle capacity per vehicle v
+cd = build_distance_mat(node_data)                      # Distance between node i and j
+s  = VEHICLE_PACE                                       # Pace of vehicle v
+q  = [n.DEMAND for n in node_data]                      # Demand at node i
+bm = case.battery_range                                 # Maximum travel time of vehicle v
+bc = case.charge_rate                                   # travel time per charge time
+bd = case.discharge_rate                                # battery time per travel time
+bs = [n.CHARGING for n in node_data]                    # Charger station at node i
+ts = [n.SERVICETIME for n in node_data]                 # Minimal service time at node i
+tr = [n.READYTIME for n in node_data]                   # Ready time at node i
+td = [n.DUETIME for n in node_data]                     # Due time at node i
+wd = 1.0                                                # weight of distance in objective
+wc = 0.5                                                # weight of charging costs in objective
+cc = [p.COST for p in case.charge_periods]              # Charging cost in period p
+to = [p.STARTTIME for p in case.charge_periods]         # Open time for charge period p
+tc = [p.ENDTIME for p in case.charge_periods]           # Close time for charge period p
 
 
 # MODEL DEFINITION
@@ -162,23 +162,23 @@ tc = [p.ENDTIME for p in case.charge_periods]   # Close time for charge period p
 model = Model('Vehicle Routing Problem')
 
 # DESISION VARIABLES
-x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                             # If 1, indicates if vehicle v travels from node i to j
-z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                # If 1, node is visited by vehicle v
-u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')         # order of node i in the tour
-k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                     # outgoing vehicles
-tau_s  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')    # charging start time at node i inperiod p for vehicle v
-tau_e  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')    # charging end time at node i inperiod p for vehicle v
-beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^c') # Amount charged at node i in period p
-beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^b')                           # if 1, vehicle v has charged in period p at node i
-beta_a = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^a')             # Battery level at arrival of vehicle v at node i
-beta_d = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^d')             # Battery level at departure of vehicle v at node i
-tau_a  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^a')       # Time of arrival at node i        
-tau_d  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^d')       # Time of depature at node i
+x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                                 # If 1, indicates if vehicle v travels from node i to j
+z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                    # If 1, node is visited by vehicle v
+u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
+k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                         # outgoing vehicles
+tau_s  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging start time at node i inperiod p for vehicle v
+tau_e  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging end time at node i inperiod p for vehicle v
+beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^c')     # Amount charged at node i in period p
+beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^b')                               # if 1, vehicle v has charged in period p at node i
+beta_a = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^a')                 # Battery level at arrival of vehicle v at node i
+beta_d = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^d')                 # Battery level at departure of vehicle v at node i
+tau_a  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^a')           # Time of arrival at node i        
+tau_d  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^d')           # Time of depature at node i
 
 # OBJECTIVE
 obj = (
-    wd * quicksum(cd[i][j] * x[i, j, v] for i in N for j in N for v in V) + 
-    wc * quicksum(cc[p] * beta_q[i, p, v] for i in N[1:] for p in P for v in V)
+    wd * quicksum(cd[i][j] * x[i, j, v] for i in N for j in N for v in V) +       # Distance
+    wc * quicksum(cc[p] * beta_q[i, p, v] for i in N[1:] for p in P for v in V)   # Charging costs
 )
 model.setObjective(obj, GRB.MINIMIZE)
 
@@ -257,9 +257,9 @@ constraints = {
     (tau_d[i, v] >= tau_e[i, p, v] - MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
-    # 'non_neg_chargetime': # start time charging is before or eq to end time charging
-    # (tau_s[i, p, v] <= tau_e[i, p, v]
-    #  for i in N for p in P for v in V),
+    'non_neg_chargetime': # start time charging is before or eq to end time charging (to not sell more exp energy)
+    (tau_s[i, p, v] <= tau_e[i, p, v]
+     for i in N for p in P for v in V),
 
     'charge_period_open': # start time charging after period start ( -inf if no charging)
     (tau_s[i, p, v] >= to[p] - MAX_TIME * (1 - beta_c[i, p, v])
