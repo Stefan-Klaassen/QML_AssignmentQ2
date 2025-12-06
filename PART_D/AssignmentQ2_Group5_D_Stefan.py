@@ -187,7 +187,7 @@ constraints = {
 
     # ROUTE
     'visit_nodes_once':
-    (quicksum(z[i, v] for v in V) == 1 for i in N if i != 0),
+    (quicksum(z[i, v] for v in V) == 1 for i in N[1:]),
 
     'outgoing_vehicles':
     quicksum(z[0, v] for v in V) == k,
@@ -208,26 +208,26 @@ constraints = {
     (u[0, v] == 1 for v in V),
 
     'subtour_elimination(2)':
-    (u[i, v] >= 2 for i in N if i != 0 for v in V),
+    (u[i, v] >= 2 for i in N[1:] for v in V),
 
     'subtour_elimination(3)':
-    (u[i, v] <= len(N) for i in N if i != 0 for v in V),
+    (u[i, v] <= len(N) for i in N[1:] for v in V),
 
     'subtour_elimination(4)':
     (u[i, v] - u[j, v] + len(N) * x[i, j, v] <= len(N) - 1
-     for i in N for j in N if j != 0 for v in V),
+     for i in N for j in N[1:] for v in V),
 
     # BATTERY:
     'initial_charge': # set initial charge to max battery cap
-    (beta_d[0, v] == bm for v in V),
+    (beta_a[0, v] == bm for v in V),
 
     'battery_dynamics_traveling': # departure charge - discharge == arrival charge
-    (beta_d[j, v] - cd[i][j] * s * bd + MAX_BATTERY * (1 - x[j, i, v]) >= beta_a[i, v]
-     for i in N[1:] for j in N if i != j for v in V),
+    (beta_d[i, v] - cd[i][j] * s * bd + MAX_BATTERY * (1 - x[i, j, v]) >= beta_a[j, v]
+     for i in N for j in N[1:] if i != j for v in V),
 
     'battery_dynamics_charging': # arrival charge + total charge == departure charge
     (beta_a[i, v] + quicksum(beta_q[i, p, v] for p in P) == beta_d[i, v]
-     for i in N[1:] for v in V),
+     for i in N for v in V),
 
     'has_charger': # charged -> 0 if no charger
     (beta_q[i, p, v] <= MAX_BATTERY * bs[i]
@@ -235,19 +235,16 @@ constraints = {
 
     'amount_charged': # == charge time * charge rate * has charged
     (beta_q[i, p, v] == (tau_e[i, p, v] - tau_s[i, p, v]) * bc * beta_c[i, p, v]
-     for i in N[1:] for p in P for v in V),
+     for i in N for p in P for v in V),
 
     'final_charge': # departure charge last node - discharge ( +inf if not last node) >= 0
     (beta_d[i, v] - cd[i][0] * s * bd + MAX_BATTERY * (1 - x[i, 0, v]) >= 0
      for i in N[1:] for v in V),
 
     # TIME:
-    'start_time': # sets start time to ready time depot
-    (tau_a[0, v] == tr[0] for v in V),
-
     'arrival_time_dynamics': # departure time outgoing node + travel time ( -inf if not prev arc) <= arrival time
-    (tau_d[j, v] + cd[i][j] * s - MAX_TIME * (1 - x[j, i, v]) <= tau_a[i, v]
-     for i in N[1:] for j in N if i != j for v in V),
+    (tau_d[i, v] + cd[i][j] * s - MAX_TIME * (1 - x[i, j, v]) <= tau_a[j, v]
+     for i in N for j in N[1:] if i != j for v in V),
 
     'departure_time_dynamics_service': # departure time >= arrival time + service time
     (tau_d[i, v] >= tau_a[i, v] + ts[i]
@@ -271,13 +268,13 @@ constraints = {
 
     'charge_after_arrival': # start time charging after arrival ( -inf if no charging)
     (tau_s[i, p, v] >= tau_a[i, v] - MAX_TIME * (1 - beta_c[i, p, v])
-     for i in N[1:] for p in P for v in V),
+     for i in N for p in P for v in V),
 
     'ready_time_service': # service window start <= arrival time
-    (tr[i] <= tau_a[i, v] for i in N if i != 0 for v in V),
+    (tr[i] <= tau_a[i, v] for i in N for v in V),
 
     'due_time_service': # service window end >= arrival time
-    (td[i] >= tau_a[i, v] for i in N if i != 0 for v in V),
+    (td[i] >= tau_a[i, v] for i in N[1:] for v in V),
 
     'finish_time': # departure time + travel time ( -inf if not prev arc) <= due time depot
     (tau_d[i, v] + cd[i][0] * s - MAX_TIME * (1 - x[i, 0, v]) <= td[0]
@@ -294,7 +291,7 @@ for name, con in constraints.items():
 
 model.update()
 # model.write('TSPmodel.lp')
-setattr(model.Params, 'timeLimit', 30)
+setattr(model.Params, 'timeLimit', 3600)
 model.optimize()
 # model.write('TSPmodel.sol')
 
