@@ -290,14 +290,25 @@ for name, con in constraints.items():
 # print([c.ConstrName for c in model.getConstrs() if c.IISConstr == 1])
 
 
+
+# SOLVE
+#==================================================================================================
+
 model.update()
-model.write('TSPmodel.lp')
+# model.write('TSPmodel.lp')
 setattr(model.Params, 'timeLimit', 3600)
 model.optimize()
 # model.write('TSPmodel.sol')
-solved = model.Status == GRB.OPTIMAL
-res = model.ObjVal if model.Status == GRB.OPTIMAL else "😢"
-print('\n'*2, 'Result: ', res, sep='')
+
+try: sol = model.ObjVal
+except: sol = None
+
+if __name__ == "__main__":
+    print('\n')
+    if not sol:
+        print('Failed')
+        sys.exit(1)
+    print('Success, obj:', sol)
 
 
 
