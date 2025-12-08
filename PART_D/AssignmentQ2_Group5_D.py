@@ -184,6 +184,7 @@ obj = wd*quicksum(d[i][j] * x_ijv[i, j, v] for i in N for j in N for v in V) +  
 model.setObjective(obj, GRB.MINIMIZE)
 
 
+
 # CONSTRAINTS
 constraints = {
     'visit_constraint':
@@ -205,14 +206,15 @@ constraints = {
     'no_self_loops':
     (x_ijv[i, i, v] == 0 for i in N for v in V),
 
-    'time_constraint(1)':
+    'time_constraint':
     (tau_d_i[i] + (d[i][j] * s) - MAX_TIME * (1 - x_ijv[i, j, v]) <= tau_a_i[j]
         for i in N for j in N[1:] if i != j for v in V),
 
-    'end_time_constraint(1)':
+    'end_time_constraint':
     (tau_d_i[i] + (d[i][0] * s) - MAX_TIME * (1 - x_ijv[i, 0, v]) <= td[0]
         for i in N[1:] for v in V),
     
+
 
     'time_window_constraint_start':
     (tr[i] <= tau_s_i[i] for i in N),
@@ -241,12 +243,8 @@ constraints = {
     ((beta_iv[i, v] + tau_c_i[i] * bc * bs[i]) - (1 - x_ijv[i, j, v]) * MAX_BATTERY <= bm 
         for i in N for j in N for v in V),
     
-    'battery_update_constraint':
+    'battery_link_constraint':
     (beta_iv[i, v] - (d[i][j] * s * bd) + tau_c_i[i] * bc * bs[i] + (1 - x_ijv[i, j, v]) * MAX_BATTERY >= beta_iv[j, v]
-        for i in N for j in N[1:] if i != j for v in V),
-
-    'battery_update_constraint(2)':
-    (beta_iv[i, v] - (d[i][j] * s * bd) + tau_c_i[i] * bc * bs[i] - (1 - x_ijv[i, j, v]) * MAX_BATTERY <= beta_iv[j, v]
         for i in N for j in N[1:] if i != j for v in V),
 
     'initial_battery_constraint':
