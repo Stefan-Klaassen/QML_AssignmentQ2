@@ -166,19 +166,20 @@ x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                     
 z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                    # If 1, node is visited by vehicle v
 u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
 k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                         # outgoing vehicles
-tau_s  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging start time at node i in period p for vehicle v
-tau_e  = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^c')        # charging end time at node i in period p for vehicle v
-beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^c')     # Amount charged at node i in period p
-beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^b')                               # if 1, vehicle v has charged in period p at node i
+beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^q')     # Amount charged at node i in period p
+beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^c')                               # if 1, vehicle v has charged in period p at node i
 beta_a = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^a')                 # Battery level at arrival of vehicle v at node i
 beta_d = model.addVars(N, V, lb=0, ub=bm, vtype=GRB.CONTINUOUS, name='β^d')                 # Battery level at departure of vehicle v at node i
+tau_cs = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^cs')       # charging start time at node i in period p for vehicle v
+tau_ce = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^ce')       # charging end time at node i in period p for vehicle v
+tau_ss = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^ss')          # Time of arrival at node i
 tau_a  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^a')           # Time of arrival at node i        
 tau_d  = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^d')           # Time of depature at node i
 
 # OBJECTIVE
 obj = (
-    wd * quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V) +       # Distance
-    wc * quicksum(cc[p] * beta_q[i, p, v] for i in N[1:] for p in P for v in V)   # Charging costs
+    wd * quicksum(d[i][j] * x[i, j, v] for i in N for j in N for v in V) +                  # Distance
+    wc * quicksum(cc[p] * beta_q[i, p, v] for i in N[1:] for p in P for v in V)             # Charging costs
 )
 model.setObjective(obj, GRB.MINIMIZE)
 
@@ -221,63 +222,65 @@ constraints = {
     'initial_charge': # set initial charge to max battery cap
     (beta_a[0, v] == bm for v in V),
 
-    'battery_dynamics_traveling': # departure charge - discharge == arrival charge
-    (beta_d[i, v] - d[i][j] * s *  bd + MAX_BATTERY * (1 - x[i, j, v]) >= beta_a[j, v]
+    'battery_dynamics_traveling': # departure charge - discharge == arrival charge ( -inf if not prev arc)
+    (beta_d[i, v] - d[i][j] * s *  bd >= beta_a[j, v] - MAX_BATTERY * (1 - x[i, j, v])
      for i in N for j in N[1:] if i != j for v in V),
 
     'battery_dynamics_charging': # arrival charge + total charge == departure charge
     (beta_a[i, v] + quicksum(beta_q[i, p, v] for p in P) == beta_d[i, v]
      for i in N for v in V),
 
-    'has_charger': # charged -> 0 if no charger
-    (beta_q[i, p, v] <= MAX_BATTERY * bs[i]
+    'amount_charged': # == charge time * charge rate * has charger * has charged
+    (beta_q[i, p, v] == (tau_ce[i, p, v] - tau_cs[i, p, v]) * bc * bs[i] * beta_c[i, p, v] 
      for i in N for p in P for v in V),
 
-    'amount_charged': # == charge time * charge rate * has charged
-    (beta_q[i, p, v] == (tau_e[i, p, v] - tau_s[i, p, v]) * bc * beta_c[i, p, v]
-     for i in N for p in P for v in V),
-
-    'final_charge': # departure charge last node - discharge ( +inf if not last node) >= 0
-    (beta_d[i, v] - d[i][0] * s * bd + MAX_BATTERY * (1 - x[i, 0, v]) >= 0
+    'final_charge': # departure charge last node - discharge >= 0 ( -inf if not last node)
+    (beta_d[i, v] - d[i][0] * s * bd >= 0 - MAX_BATTERY * (1 - x[i, 0, v])
      for i in N[1:] for v in V),
 
     # TIME:
-    'arrival_time_dynamics': # departure time outgoing node + travel time ( -inf if not prev arc) <= arrival time
-    (tau_d[i, v] + d[i][j] * s - MAX_TIME * (1 - x[i, j, v]) <= tau_a[j, v]
+    'arrival_time_dynamics': # departure time outgoing node + travel time <= arrival time ( +inf if not prev arc)
+    (tau_d[i, v] + d[i][j] * s <= tau_a[j, v] + MAX_TIME * (1 - x[i, j, v])
      for i in N for j in N[1:] if i != j for v in V),
 
-    'departure_time_dynamics_service': # departure time >= arrival time + service time
-    (tau_d[i, v] >= tau_a[i, v] + ts[i]
+    'departure_time_dynamics_service': # departure time >= start service time + service time ( -inf if not visited)
+    (tau_d[i, v] >= tau_ss[i, v] + ts[i] - MAX_TIME * (1 - z[i, v])
      for i in N for v in V),
 
     'departure_time_dynamics_charging': # departure time >= end charging time ( -inf if no charging)
-    (tau_d[i, v] >= tau_e[i, p, v] - MAX_TIME * (1 - beta_c[i, p, v])
+    (tau_d[i, v] >= tau_ce[i, p, v] - MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
     'non_neg_chargetime': # start time charging is before or eq to end time charging (to not sell more exp energy)
-    (tau_s[i, p, v] <= tau_e[i, p, v]
+    (tau_cs[i, p, v] <= tau_ce[i, p, v] + MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
     'charge_period_open': # start time charging after period start ( -inf if no charging)
-    (tau_s[i, p, v] >= to[p] - MAX_TIME * (1 - beta_c[i, p, v])
+    (tau_cs[i, p, v] >= to[p] - MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
     'charge_period_close': # end time charging before period end ( +inf if no charging)
-    (tau_e[i, p, v] <= tc[p] + MAX_TIME * (1 - beta_c[i, p, v])
+    (tau_ce[i, p, v] <= tc[p] + MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
     'charge_after_arrival': # start time charging after arrival ( -inf if no charging)
-    (tau_s[i, p, v] >= tau_a[i, v] - MAX_TIME * (1 - beta_c[i, p, v])
+    (tau_cs[i, p, v] >= tau_a[i, v] - MAX_TIME * (1 - beta_c[i, p, v])
      for i in N for p in P for v in V),
 
-    'ready_time_service': # service window start <= arrival time
-    (tr[i] <= tau_a[i, v] for i in N for v in V),
+    'start_service': # Start time serive after arrival time ( -inf if not visited)
+    (tau_ss[i, v] >= tau_a[i, v] - MAX_TIME * (1 - z[i, v])
+     for i in N for v in V),
 
-    'due_time_service': # service window end >= arrival time
-    (td[i] >= tau_a[i, v] for i in N[1:] for v in V),
+    'ready_time_service': # service window start <= start time service ( -inf if not visited)
+    (tr[i] <= tau_ss[i, v] - MAX_TIME * (1 - z[i, v])
+     for i in N for v in V),
 
-    'finish_time': # departure time + travel time ( -inf if not prev arc) <= due time depot
-    (tau_d[i, v] + d[i][0] * s - MAX_TIME * (1 - x[i, 0, v]) <= td[0]
+    'due_time_service': # service window end >= start time service ( -inf if not visited)
+    (td[i] >= tau_ss[i, v] - MAX_TIME * (1 - z[i, v])
+     for i in N[1:] for v in V),
+
+    'finish_time': # departure time + travel time <= due time depot ( +inf if not prev arc)
+    (tau_d[i, v] + d[i][0] * s <= td[0] + MAX_TIME * (1 - x[i, 0, v])
      for i in N[1:] for v in V),
 }
 
