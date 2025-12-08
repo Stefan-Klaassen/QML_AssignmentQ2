@@ -272,7 +272,7 @@ constraints = {
      for i in N for v in V),
 
     'ready_time_service': # service window start <= start time service ( -inf if not visited)
-    (tr[i] <= tau_ss[i, v] - MAX_TIME * (1 - z[i, v])
+    (tr[i] <= tau_ss[i, v] + MAX_TIME * (1 - z[i, v])
      for i in N for v in V),
 
     'due_time_service': # service window end >= start time service ( -inf if not visited)
