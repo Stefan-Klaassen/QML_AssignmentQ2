@@ -136,7 +136,7 @@ model = Model('Vehicle Routing Problem')
 # DESISION VARIABLES
 x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                                 # If 1, indicates if vehicle v travels from node i to j
 z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                    # If 1, node is visited by vehicle v
-u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
+# u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
 k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                         # outgoing vehicles
 beta_q = model.addVars(N, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^q')        # Amount charged at node i in period p
 beta_c = model.addVars(N, V, vtype=GRB.BINARY, name='β^c')                                  # if 1, vehicle v has charged in period p at node i

@@ -75,6 +75,9 @@ class Vehicle:
     fixed_cost: int
     variable_cost: float
 
+    def __repr__(self) -> str:
+        return f"Vehicle({self.type})"
+
 # FUNCTIONS
 def get_data(filename: str, Cls: Any) -> list[Any]:
     try:
@@ -115,6 +118,7 @@ charge_periods_data = get_data('data_periodsCharge.txt', ChargePeriod)
 electric_vehicle = Vehicle('EV', 100, 90, 1.1, 0.7, 120, 1.25)
 diesel_vehicle = Vehicle('DV', 100, None, None, None, 100, 2.0)
 fleet = [electric_vehicle] * ELECTRIC_VEHICLES + [diesel_vehicle] * DIESEL_VEHICLES
+print(f"\nFleet: {fleet}\n")
 
 
 # SETS
@@ -156,12 +160,12 @@ model = Model('Vehicle Routing Problem')
 # DESISION VARIABLES
 x      = model.addVars(N, N, V, vtype=GRB.BINARY, name='x')                                 # If 1, indicates if vehicle v travels from node i to j
 z      = model.addVars(N, V, vtype=GRB.BINARY, name='z')                                    # If 1, node is visited by vehicle v
-u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
+# u      = model.addVars(N, V, lb=0, ub=len(N)-1, vtype=GRB.CONTINUOUS, name='u')             # order of node i in the tour
 k      = model.addVar(lb=0, ub=len(V), vtype=GRB.INTEGER, name='k')                         # outgoing vehicles
 beta_q = model.addVars(N, P, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^q')     # Amount charged at node i in period p
 beta_c = model.addVars(N, P, V, vtype=GRB.BINARY, name='β^c')                               # if 1, vehicle v has charged in period p at node i
-beta_a = model.addVars(N, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^a')            # Battery level at arrival of vehicle v at node i
-beta_d = model.addVars(N, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^d')            # Battery level at departure of vehicle v at node i
+beta_a = model.addVars(N, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^a')        # Battery level at arrival of vehicle v at node i
+beta_d = model.addVars(N, V, lb=0, ub=MAX_BATTERY, vtype=GRB.CONTINUOUS, name='β^d')        # Battery level at departure of vehicle v at node i
 tau_cs = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^cs')       # charging start time at node i in period p for vehicle v
 tau_ce = model.addVars(N, P, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^ce')       # charging end time at node i in period p for vehicle v
 tau_ss = model.addVars(N, V, lb=0, ub=MAX_TIME, vtype=GRB.CONTINUOUS, name='τ^ss')          # Time of arrival at node i
@@ -231,6 +235,9 @@ constraints = {
     'amount_charged': # == charge time * charge rate * has charger * has charged
         (beta_q[i, p, v] == (tau_ce[i, p, v] - tau_cs[i, p, v]) * bc[v] * bs[i] * beta_c[i, p, v]       # type: ignore
         for i in N for p in P for v in V_ev),
+
+    'battery_capacity': # departure charge <= battery capacity, if i is visited (Arrival capacity should always be lower)
+        (beta_d[i, v] <= bm[v] + MAX_BATTERY * (1 - z[i, v]) for i in N for v in V_ev),                 # type: ignore
 
     'final_charge': # departure charge last node - discharge >= 0, if (i, 0) is arc
         (beta_d[i, v] - d[i][0] * s * bd[v] >= 0 - MAX_BATTERY * (1 - x[i, 0, v])                       # type: ignore
