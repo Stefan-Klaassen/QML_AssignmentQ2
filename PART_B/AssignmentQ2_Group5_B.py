@@ -60,13 +60,6 @@ class Node:
     SERVICETIME: int
     CHARGING: int
 
-@dataclass
-class ChargePeriod:
-    PER_ID: int
-    STARTTIME: int
-    ENDTIME: int
-    COST: int
-
 
 # FUNCTIONS
 def get_data(filename: str, Cls: Any) -> list[Any]:
@@ -76,6 +69,7 @@ def get_data(filename: str, Cls: Any) -> list[Any]:
     except Exception as e: 
         print(e)
         sys.exit(1)
+    print(f"Using file: {file}\n")
     data = []
     with file.open('r') as f:
         for line in f:
@@ -101,6 +95,7 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
     return mat
 
 # GET EXTERNAL DATA
+print('\n')
 node_data: list[Node] = get_data('data_small.txt', Node)
 
 

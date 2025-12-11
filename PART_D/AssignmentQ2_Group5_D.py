@@ -63,6 +63,9 @@ class ChargePeriod:
     ENDTIME: int
     COST: int
 
+    def __repr__(self) -> str:
+        return f"ChargePeriod(cost={self.COST})"
+
 @dataclass
 class Case:
     fleet_size: int
@@ -72,6 +75,9 @@ class Case:
     discharge_rate: float
     charge_periods: list[ChargePeriod]
 
+    def __str__(self) -> str:
+        return '\n'.join(f"{k}: {v}" for k, v in self.__dict__.items())
+
 # FUNCTIONS
 def get_data(filename: str, Cls: Any) -> list[Any]:
     try:
@@ -80,6 +86,7 @@ def get_data(filename: str, Cls: Any) -> list[Any]:
     except Exception as e: 
         print(e)
         sys.exit(1)
+    print(f"Using file: {file}\n")
     data = []
     with file.open('r') as f:
         for line in f:
@@ -105,6 +112,7 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
     return mat
 
 # GET EXTERNAL DATA
+print('\n')
 node_data: list[Node] = get_data('data_small.txt', Node)
 charge_periods_from_file = get_data('data_periodsCharge.txt', ChargePeriod)
 
@@ -124,6 +132,8 @@ while not case:
         case = cases[int(inp)]
     except:
         print("Enter a number from 1 - 5. (press ctrl+c to exit)")
+
+print(f"\n{case}\n")
 
 
 # SETS

@@ -75,6 +75,9 @@ class Vehicle:
     fixed_cost: int
     variable_cost: float
 
+    def __str__(self) -> str:
+        return '\n'.join(f"{k}: {v}" for k, v in self.__dict__.items())
+    
     def __repr__(self) -> str:
         return f"Vehicle({self.type})"
 
@@ -86,6 +89,7 @@ def get_data(filename: str, Cls: Any) -> list[Any]:
     except Exception as e: 
         print(e)
         sys.exit(1)
+    print(f"Using file: {file}\n")
     data = []
     with file.open('r') as f:
         for line in f:
@@ -111,12 +115,15 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
     return mat
 
 # GET EXTERNAL DATA
+print('\n')
 node_data: list[Node] = get_data('data_small.txt', Node)
-charge_periods_data = get_data('data_periodsCharge.txt', ChargePeriod)
+charge_periods_data: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # VEHICLES
 electric_vehicle = Vehicle('EV', 100, 90, 1.1, 0.7, 120, 1.25)
+print(f"\n{electric_vehicle}")
 diesel_vehicle = Vehicle('DV', 100, None, None, None, 100, 2.0)
+print(f"\n{diesel_vehicle}")
 fleet = [electric_vehicle] * ELECTRIC_VEHICLES + [diesel_vehicle] * DIESEL_VEHICLES
 print(f"\nFleet: {fleet}\n")
 
@@ -126,8 +133,8 @@ print(f"\nFleet: {fleet}\n")
 
 N = range(len(node_data))
 V = range(len(fleet))
-V_ev = [i for i, v in enumerate(fleet) if v.type == 'EV']
-V_dv = [i for i, v in enumerate(fleet) if v.type == 'DV']
+V_EV = [v for v, ins in zip(V, fleet) if ins.type == 'EV']
+V_DV = [v for v, ins in zip(V, fleet) if ins.type == 'DV']
 P = range(len(charge_periods_data))
 
 
@@ -217,31 +224,31 @@ constraints = {
 
     # BATTERY:
     'initial_charge': # set initial charge to max battery cap
-        (beta_a[0, v] == bm[v] for v in V_ev),
+        (beta_a[0, v] == bm[v] for v in V_EV),
 
     'battery_dynamics_traveling': # departure charge - discharge == arrival charge, if (i, j) is arc
     (
         (beta_d[i, v] - d[i][j] * s *  bd[v] <= beta_a[j, v] + MAX_BATTERY * (1 - x[i, j, v])           # type: ignore
-        for i in N for j in N[1:] if i != j for v in V_ev),
+        for i in N for j in N[1:] if i != j for v in V_EV),
 
         (beta_d[i, v] - d[i][j] * s *  bd[v] >= beta_a[j, v] - MAX_BATTERY * (1 - x[i, j, v])           # type: ignore
-        for i in N for j in N[1:] if i != j for v in V_ev),
+        for i in N for j in N[1:] if i != j for v in V_EV),
     ),
 
     'battery_dynamics_charging': # arrival charge + total charge == departure charge
         (beta_a[i, v] + quicksum(beta_q[i, p, v] for p in P) == beta_d[i, v]
-        for i in N for v in V_ev),
+        for i in N for v in V_EV),
 
     'amount_charged': # == charge time * charge rate * has charger * has charged
         (beta_q[i, p, v] == (tau_ce[i, p, v] - tau_cs[i, p, v]) * bc[v] * bs[i] * beta_c[i, p, v]       # type: ignore
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'battery_capacity': # departure charge <= battery capacity, if i is visited (Arrival capacity should always be lower)
-        (beta_d[i, v] <= bm[v] + MAX_BATTERY * (1 - z[i, v]) for i in N for v in V_ev),                 # type: ignore
+        (beta_d[i, v] <= bm[v] + MAX_BATTERY * (1 - z[i, v]) for i in N for v in V_EV),                 # type: ignore
 
     'final_charge': # departure charge last node - discharge >= 0, if (i, 0) is arc
         (beta_d[i, v] - d[i][0] * s * bd[v] >= 0 - MAX_BATTERY * (1 - x[i, 0, v])                       # type: ignore
-        for i in N[1:] for v in V_ev),
+        for i in N[1:] for v in V_EV),
 
     # TIME:
     'arrival_time_dynamics': # departure time outgoing node + travel time == arrival time, if (i, j) is arc
@@ -259,23 +266,23 @@ constraints = {
 
     'departure_time_dynamics_charging': # departure time >= end charging time, if has charged
         (tau_d[i, v] >= tau_ce[i, p, v] - MAX_TIME * (1 - beta_c[i, p, v])
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'non_neg_chargetime': # start time charging >= end time charging, if has charged (to not sell more exp energy)
         (tau_cs[i, p, v] <= tau_ce[i, p, v] + MAX_TIME * (1 - beta_c[i, p, v])
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'charge_period_open': # start time charging >= period start, if has charged
         (tau_cs[i, p, v] >= to[p] - MAX_TIME * (1 - beta_c[i, p, v])
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'charge_period_close': # end time charging <= period end, if has charged
         (tau_ce[i, p, v] <= tc[p] + MAX_TIME * (1 - beta_c[i, p, v])
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'charge_after_arrival': # start time charging after arrival, if has charged
         (tau_cs[i, p, v] >= tau_a[i, v] - MAX_TIME * (1 - beta_c[i, p, v])
-        for i in N for p in P for v in V_ev),
+        for i in N for p in P for v in V_EV),
 
     'start_service': # Start time serive after arrival time, if i is visited
         (tau_ss[i, v] >= tau_a[i, v] - MAX_TIME * (1 - z[i, v])
