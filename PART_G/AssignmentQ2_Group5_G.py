@@ -3,7 +3,7 @@
 """
 Title: Vehicle routing problem
 Course: ME44206 Quantitative Methods for Logistics
-Part: F  (Heterogeneous fleet implementation)
+Part: G  (Heterogeneous fleet implementation 2)
 Authors:
     Stefan Klaassen - 6076947
     Peter Nederveen - 5607175
@@ -14,7 +14,7 @@ Usage:
     ./ 
      ├── AssignmentQ2_Group5_F.py
      ├── data_periodsCharge.txt
-     └── data_small.txt
+     └── data_large.txt
 
 Dependencies:
     Python 3.13.7+
@@ -124,7 +124,7 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
 # ================================================================================================
 
 print('\n')
-node_data: list[Node] = get_data('data_small.txt', Node)
+node_data: list[Node] = get_data('data_large.txt', Node)
 charge_periods_from_file = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # =============================== ASSIGNMENT F SETTINGS ==========================================
@@ -134,8 +134,8 @@ NUM_DV = 3
 
 case = Case(
     fleet_size    = NUM_EV + NUM_DV,
-    capacity      = 100,      # capacity of each vehicle (EV and DV)
-    battery_range = 90,       # EV battery range (time units)
+    capacity      = 300,      # capacity of each vehicle (EV and DV)
+    battery_range = 120,       # EV battery range (time units)
     charge_rate   = 1.1,      # EV charge rate
     discharge_rate= 0.7,      # EV discharge rate
     charge_periods= charge_periods_from_file,
@@ -186,7 +186,7 @@ var_cost   = {v: (VAR_COST_EV   if v in V_EV else VAR_COST_DV)   for v in V}
 # MODEL DEFINITION
 # ================================================================================================
 
-model = Model('Vehicle Routing Problem - Assignment F')
+model = Model('Vehicle Routing Problem - Assignment G')
 
 # DECISION VARIABLES
 x      = model.addVars(N, N, V, vtype=GRB.BINARY,   name='x')     # travel from i to j by v
