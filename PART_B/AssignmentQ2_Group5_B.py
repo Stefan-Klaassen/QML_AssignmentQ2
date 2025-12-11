@@ -265,18 +265,26 @@ for name, con in constraints.items():
 # SOLVE
 #==================================================================================================
 
-model.update()
-# model.write('TSPmodel.lp')
-setattr(model.Params, 'timeLimit', 3600)
-model.optimize()
-# model.write('TSPmodel.sol')
+sol = None
+def solve():
+    try:
+        global sol
+        model.update()
+        # model.write('TSPmodel.lp')
+        setattr(model.Params, 'timeLimit', 3600)
+        model.optimize()
+        # model.write('TSPmodel.sol')
 
-try: sol = model.ObjVal
-except: sol = None
+        try: sol = model.ObjVal
+        except: raise Exception("Solution not found")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+solve()
 
 if __name__ == "__main__":
-    print('\n')
     if not sol:
-        print('Failed')
         sys.exit(1)
+    print('\n')
     print('Success, obj:', sol)
