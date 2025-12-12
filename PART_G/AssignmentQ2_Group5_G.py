@@ -12,7 +12,7 @@ Authors:
 
 Usage:
     ./ 
-     ├── AssignmentQ2_Group5_F.py
+     ├── AssignmentQ2_Group5_G.py
      ├── data_periodsCharge.txt
      └── data_large.txt
 
@@ -127,7 +127,7 @@ print('\n')
 node_data: list[Node] = get_data('data_large.txt', Node)
 charge_periods_from_file = get_data('data_periodsCharge.txt', ChargePeriod)
 
-# =============================== ASSIGNMENT F SETTINGS ==========================================
+# =============================== ASSIGNMENT G SETTINGS ==========================================
 
 NUM_EV = 3
 NUM_DV = 3
@@ -141,7 +141,7 @@ case = Case(
     charge_periods= charge_periods_from_file,
 )
 
-print("Case F settings:\n", case, "\n")
+print("Case G settings:\n", case, "\n")
 
 # Cost parameters (per vehicle type)
 FIXED_COST_DV = 100.0
