@@ -27,7 +27,7 @@ Dependencies:
 # IMPORTS
 #==================================================================================================
 
-import math, sys
+import math, sys, time
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Any
@@ -246,7 +246,11 @@ constraints = {
         for i in N for v in V),
 
     'amount_charged': # == charge time * charge rate * has charger * has charged
-        (beta_q[i, p, v] == (tau_ce[i, p, v] - tau_cs[i, p, v]) * bc * bs[i] * beta_c[i, p, v] 
+        (beta_q[i, p, v] == (tau_ce[i, p, v] - tau_cs[i, p, v]) * bc * bs[i] 
+        for i in N for p in P for v in V),
+
+    'has_charged': # linearly Link beta_c to beta_q 
+        (beta_q[i, p, v] <= beta_c[i, p, v] * MAX_BATTERY
         for i in N for p in P for v in V),
 
     'final_charge': # departure charge last node - discharge >= 0, if (i, 0) is arc
@@ -323,6 +327,8 @@ sol = None
 def solve():
     try:
         global sol
+        start = time.time()
+
         model.update()
         # model.write('TSPmodel.lp')
         setattr(model.Params, 'timeLimit', 3600)
@@ -331,6 +337,8 @@ def solve():
 
         try: sol = model.ObjVal
         except: raise Exception("Solution not found")
+
+        print(f"\nSolve time: {time.time() - start:.2f} seconds.\n")
 
     except Exception as e:
         print(f"Error: {e}")
