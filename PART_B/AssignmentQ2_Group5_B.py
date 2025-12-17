@@ -203,6 +203,10 @@ constraints = {
         (beta_q[i, v] == (tau_ce[i, v] - tau_cs[i, v]) * bc * bs[i] * beta_c[i, v] 
         for i in N for v in V),
 
+    'has_charged': # linearly Link beta_c to beta_q 
+        (beta_q[i, v] <= beta_c[i, v] * MAX_BATTERY
+        for i in N for v in V),
+
     'final_charge': # departure charge last node - discharge >= 0, if (i, 0) is arc
         (beta_d[i, v] - d[i][0] * s * bd >= 0 - MAX_BATTERY * (1 - x[i, 0, v])
         for i in N[1:] for v in V),
