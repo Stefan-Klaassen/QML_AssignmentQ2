@@ -234,7 +234,7 @@ obj = (
              for i in N if i != 0 for p in P for v in V_EV)
     +
     # Cost of driver
-    cp * quicksum(quicksum(x[j,0,v]  * (tau_d[j,v]  +  s*d[j][0]) for j in N if j!=0)  - tau_d[0,v] for v in V)
+    cp * quicksum(quicksum(x[j,0,v]  * (tau_d[j,v]  +  s*d[j][0] - tau_d[0,v] ) for j in N if j!=0)for v in V)
 )
 
 model.setObjective(obj, GRB.MINIMIZE)
