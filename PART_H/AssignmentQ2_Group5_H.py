@@ -116,7 +116,7 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
 
 # GET EXTERNAL DATA
 print('\n')
-node_data: list[Node] = get_data('data_large.txt', Node)
+node_data: list[Node] = get_data('data_small.txt', Node)
 charge_periods_data: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # VEHICLES
