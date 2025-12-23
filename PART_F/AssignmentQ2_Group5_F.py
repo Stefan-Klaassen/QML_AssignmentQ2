@@ -13,16 +13,21 @@ Last updated: 2025-12-10
 Version: 1.0
 
 Usage:
+    uncomment the datafile to be used on line 29-30
     ../
      ├── AssignmentQ2_Group5_F.py
      ├── data_periodsCharge.txt
-     └── data_small.txt
+     ├── data_small.txt
+     └── data_large.txt
 
 Dependencies:
     Python 3.13.7+
     gurobipy
 
 """
+
+DATA_FILE = 'data_small.txt'
+# DATA_FILE = 'data_large.txt'
 
 # IMPORTS
 #==================================================================================================
@@ -114,9 +119,10 @@ def build_distance_mat(data: list[Node]) -> list[list[float]]:
         mat.append(row)
     return mat
 
+
 # GET EXTERNAL DATA
 print('\n')
-node_data: list[Node] = get_data('data_small.txt', Node)
+node_data: list[Node] = get_data(DATA_FILE, Node)
 charge_periods_data: list[ChargePeriod] = get_data('data_periodsCharge.txt', ChargePeriod)
 
 # VEHICLES
